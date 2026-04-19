@@ -18,9 +18,9 @@ CATEGORIAS = [
 ]
 
 CORES_CATEGORIA = {
-    "Proteínas":  "#FF8C42",
+    "Proteínas":     "#FF8C42",
     "Carboidratos":  "#793911",
-    "Legumes":  "#DF641D",
+    "Legumes":       "#DF641D",
     "Embalagens":    "#FFB347",
     "Gás / Energia": "#FFA500",
     "Aluguel":       "#FF6B35",
@@ -40,6 +40,23 @@ COR_TEXTO      = "#FFFFFF"
 COR_SUBTEXTO   = "#C9A876"
 COR_DESTAQUE   = "#F79800"
 
+_logs: list = []
+
+def log(msg: str):
+    entrada = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
+    _logs.append(entrada)
+    print(entrada)
+    if len(_logs) > 200:
+        _logs.pop(0)
+
+def aplicar_mascara_data(valor: str) -> str:
+    nums = "".join(c for c in (valor or "") if c.isdigit())[:8]
+    r = ""
+    for i, c in enumerate(nums):
+        if i == 2 or i == 4:
+            r += "/"
+        r += c
+    return r
 
 def api_listar():
     try:
@@ -54,7 +71,6 @@ def api_listar():
         log(f"ERRO api_listar: {e}")
         return [], str(e)
 
-
 def api_inserir(payload: dict):
     payload["marmiteria"] = {"id": MARMITERIA_ID}
     try:
@@ -66,7 +82,6 @@ def api_inserir(payload: dict):
     except Exception as e:
         log(f"ERRO api_inserir: {e}")
         return False, str(e)
-
 
 def api_atualizar(payload: dict):
     payload["marmiteria"] = {"id": MARMITERIA_ID}
@@ -80,7 +95,6 @@ def api_atualizar(payload: dict):
         log(f"ERRO api_atualizar: {e}")
         return False, str(e)
 
-
 def api_deletar(gasto_id: int):
     try:
         log(f"DELETE /remover/{gasto_id}")
@@ -91,8 +105,6 @@ def api_deletar(gasto_id: int):
     except Exception as e:
         log(f"ERRO api_deletar: {e}")
         return False, str(e)
-
-
 
 def gerar_grafico_pizza(gastos: list) -> Optional[str]:
     if not gastos:
@@ -110,13 +122,14 @@ def gerar_grafico_pizza(gastos: list) -> Optional[str]:
         sizes.append(val)
         cores.append(CORES_CATEGORIA.get(cat, "#8B4513"))
 
-    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#1A1200")
-    ax.set_facecolor("#1A1200")
+    fig, ax = plt.subplots(figsize=(5, 4))
+    fig.patch.set_alpha(0)
+    ax.set_facecolor("none")
     ax.pie(
         sizes, labels=None,
         autopct=lambda pct: f"{pct:.1f}%",
         colors=cores, startangle=140,
-        wedgeprops=dict(width=0.6, edgecolor="#1A1200", linewidth=2),
+        wedgeprops=dict(width=0.6, edgecolor="none", linewidth=0),
         pctdistance=0.78,
         textprops={"color": "white", "fontsize": 8},
     )
@@ -130,12 +143,10 @@ def gerar_grafico_pizza(gastos: list) -> Optional[str]:
                  fontsize=11, fontweight="bold", pad=10)
     plt.tight_layout()
     buf = io.BytesIO()
-    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight", facecolor="#1A1200")
+    plt.savefig(buf, format="png", dpi=120, bbox_inches="tight", transparent=True)
     plt.close(fig)
     buf.seek(0)
     return base64.b64encode(buf.read()).decode()
-
-
 
 def mk_campo(label, **kw):
     return ft.TextField(
@@ -147,20 +158,19 @@ def mk_campo(label, **kw):
         **kw,
     )
 
-
-
-# ── Debug global ──────────────────────────────────────────
-_logs: list = []
-
-def log(msg: str):
-    from datetime import datetime as _dt
-    entrada = f"[{_dt.now().strftime('%H:%M:%S')}] {msg}"
-    _logs.append(entrada)
-    print(entrada)  # também imprime no terminal
-    if len(_logs) > 200:
-        _logs.pop(0)
-# ───────────────────────────────────────────────────────────
-
+def mk_btn(texto, on_click, icone=None, bgcolor=None):
+    controles = []
+    if icone:
+        controles.append(ft.Icon(icone, color="white", size=16))
+    controles.append(ft.Text(texto, color="white", weight=ft.FontWeight.BOLD))
+    return ft.Container(
+        content=ft.Row(controles, tight=True, spacing=6,
+                       alignment=ft.MainAxisAlignment.CENTER),
+        bgcolor=bgcolor or COR_PRIMARIA,
+        border_radius=10, height=44,
+        padding=ft.Padding.symmetric(horizontal=20, vertical=0),
+        on_click=on_click, ink=True,
+    )
 
 def main(page: ft.Page):
     page.title = "Comida & Afeto – Gestão de Gastos"
@@ -173,6 +183,7 @@ def main(page: ft.Page):
 
     todos_gastos: list = []
     gasto_editando: dict = {}
+    _salvando = [False]
 
     def snack(msg: str, cor: str = "#388E3C"):
         page.snack_bar = ft.SnackBar(
@@ -181,11 +192,44 @@ def main(page: ft.Page):
         page.snack_bar.open = True
         page.update()
 
+    def dialogo_sucesso(categoria: str, custo: float):
+        def fechar(e):
+            page.dialog.open = False
+            page.update()
+
+        page.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row([
+                ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color="#4CAF50", size=28),
+                ft.Text("  Gasto registrado!", color=COR_TEXTO,
+                        weight=ft.FontWeight.BOLD),
+            ]),
+            content=ft.Column([
+                ft.Text(f"Categoria: {categoria}", color=COR_SUBTEXTO, size=13),
+                ft.Text(f"Valor: R$ {custo:,.2f}", color=COR_DESTAQUE,
+                        size=16, weight=ft.FontWeight.BOLD),
+            ], spacing=8, tight=True),
+            actions=[mk_btn("OK", fechar)],
+            bgcolor=COR_CARD,
+            shape=ft.RoundedRectangleBorder(radius=14),
+        )
+        page.dialog.open = True
+        page.update()
 
     f_custo = mk_campo("Valor (R$)", keyboard_type=ft.KeyboardType.NUMBER, width=180)
-    f_data  = mk_campo("Data (DD/MM/AAAA)", width=210,
-                        value=date.today().strftime("%d/%m/%Y"))
     f_obs   = mk_campo("Observação (opcional)", expand=True)
+    f_data  = mk_campo("Data", width=210,
+                       value=date.today().strftime("%d/%m/%Y"),
+                       hint_text="DD/MM/AAAA", max_length=10)
+
+    def on_data_change(e):
+        c = e.control
+        novo = aplicar_mascara_data(c.value)
+        if c.value != novo:
+            c.value = novo
+            c.update()
+
+    f_data.on_change = on_data_change
 
     dd_cat = ft.Dropdown(
         label="Categoria",
@@ -215,62 +259,55 @@ def main(page: ft.Page):
     btn_cancelar.on_click = lambda e: limpar_form()
 
     def salvar_gasto(e):
-        log(">>> salvar_gasto CHAMADO")
-        custo_str = (f_custo.value or "").replace(",", ".")
-        categoria = dd_cat.value
-        data_str  = (f_data.value or "").strip()
-        log(f"  custo={custo_str!r} categoria={categoria!r} data={data_str!r}")
-
-        if not custo_str or not categoria:
-            log("  VALIDAÇÃO FALHOU: custo ou categoria vazio")
-            snack("Preencha valor e categoria!", "#C62828"); return
+        if _salvando[0]:
+            return
+        _salvando[0] = True
         try:
-            custo = float(custo_str)
-        except ValueError:
-            snack("Valor inválido!", "#C62828"); return
-        try:
-            data_iso = datetime.strptime(data_str, "%d/%m/%Y").strftime("%Y-%m-%d")
-        except Exception:
-            snack("Data inválida! Use DD/MM/AAAA", "#C62828"); return
+            log(">>> salvar_gasto CHAMADO")
+            custo_str = (f_custo.value or "").replace(",", ".")
+            categoria = dd_cat.value
+            data_str  = (f_data.value or "").strip()
+            log(f"  custo={custo_str!r} categoria={categoria!r} data={data_str!r}")
 
-        payload = {
-            "custo": custo,
-            "categoria": categoria,
-            "data": data_iso,
-            "observacao": (f_obs.value or "").strip(),
-        }
+            if not custo_str or not categoria:
+                snack("Preencha valor e categoria!", "#C62828"); return
+            try:
+                custo = float(custo_str)
+            except ValueError:
+                snack("Valor inválido!", "#C62828"); return
+            try:
+                data_iso = datetime.strptime(data_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+            except Exception:
+                snack("Data inválida! Use DD/MM/AAAA", "#C62828"); return
 
-        if gasto_editando.get("id"):
-            payload["id"] = gasto_editando["id"]
-            ok, err = api_atualizar(payload)
-            msg = "Gasto atualizado!"
-        else:
-            ok, err = api_inserir(payload)
-            msg = "Gasto registrado!"
+            payload = {
+                "custo": custo,
+                "categoria": categoria,
+                "data": data_iso,
+                "observacao": (f_obs.value or "").strip(),
+            }
 
-        if ok:
-            snack(msg)
-            limpar_form()
-            recarregar_gastos()
-        else:
-            snack(f"Erro: {err}", "#C62828")
+            if gasto_editando.get("id"):
+                payload["id"] = gasto_editando["id"]
+                ok, err = api_atualizar(payload)
+                if ok:
+                    snack("Gasto atualizado!")
+                    limpar_form()
+                    recarregar_gastos()
+                else:
+                    snack(f"Erro: {err}", "#C62828")
+            else:
+                ok, err = api_inserir(payload)
+                if ok:
+                    limpar_form()
+                    recarregar_gastos()
+                    dialogo_sucesso(categoria, custo)
+                else:
+                    snack(f"Erro: {err}", "#C62828")
+        finally:
+            _salvando[0] = False
 
-    btn_salvar = ft.Container(
-        content=ft.Row(
-            [
-                ft.Icon(ft.Icons.SAVE_OUTLINED, color="white", size=16),
-                ft.Text("Salvar Gasto", color="white", weight=ft.FontWeight.BOLD),
-            ],
-            tight=True, spacing=6,
-            alignment=ft.MainAxisAlignment.CENTER,
-        ),
-        bgcolor=COR_PRIMARIA,
-        border_radius=10,
-        height=44,
-        padding=ft.Padding.symmetric(horizontal=20, vertical=0),
-        on_click=salvar_gasto,
-        ink=True,
-    )
+    btn_salvar = mk_btn("Salvar Gasto", salvar_gasto, ft.Icons.SAVE_OUTLINED)
 
     tela_lancamento = ft.Container(
         expand=True,
@@ -308,29 +345,36 @@ def main(page: ft.Page):
         ),
     )
 
-
-    img_pizza   = ft.Image(src="", width=460, fit="contain", visible=False)
-    txt_vazio   = ft.Text("Nenhum dado para exibir.", color=COR_SUBTEXTO, size=13)
+    pizza_container = ft.Container(
+        content=ft.Text("Nenhum dado para exibir.", color=COR_SUBTEXTO, size=13),
+        expand=True,
+    )
     lista_cards = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=8, expand=True)
     total_txt   = ft.Text("Total: R$ 0,00", color=COR_DESTAQUE,
-                           size=15, weight=ft.FontWeight.BOLD)
+                          size=15, weight=ft.FontWeight.BOLD)
 
-    f_busca = ft.TextField(
-        hint_text="Buscar por categoria...",
+    dd_filtro_cat = ft.Dropdown(
+        label="Categoria",
+        options=[ft.dropdown.Option("Todas")] +
+                [ft.dropdown.Option(c) for c in CATEGORIAS],
+        value="Todas",
         bgcolor=COR_CARD, color=COR_TEXTO,
-        hint_style=ft.TextStyle(color=COR_SUBTEXTO),
+        label_style=ft.TextStyle(color=COR_SUBTEXTO),
         border_color=COR_BORDA, focused_border_color=COR_PRIMARIA,
-        border_radius=10, prefix_icon=ft.Icons.SEARCH,
-        height=44, expand=True,
+        border_radius=10, width=200,
     )
-    f_de  = mk_campo("De (DD/MM/AAAA)", width=170)
-    f_ate = mk_campo("Até (DD/MM/AAAA)", width=170)
+
+    f_de  = mk_campo("De", width=150, hint_text="DD/MM/AAAA", max_length=10)
+    f_ate = mk_campo("Até", width=150, hint_text="DD/MM/AAAA", max_length=10)
+
+    f_de.on_change  = lambda e: setattr(e.control, 'value', aplicar_mascara_data(e.control.value)) or e.control.update()
+    f_ate.on_change = lambda e: setattr(e.control, 'value', aplicar_mascara_data(e.control.value)) or e.control.update()
 
     def filtrar(gastos):
         res = gastos
-        busca = (f_busca.value or "").strip().lower()
-        if busca:
-            res = [g for g in res if busca in (g.get("categoria") or "").lower()]
+        cat_sel = dd_filtro_cat.value or "Todas"
+        if cat_sel != "Todas":
+            res = [g for g in res if (g.get("categoria") or "") == cat_sel]
         try:
             d_de = datetime.strptime(f_de.value.strip(), "%d/%m/%Y").date() \
                    if (f_de.value or "").strip() else None
@@ -369,7 +413,7 @@ def main(page: ft.Page):
             f_data.value  = datetime.strptime(
                 gasto["data"][:10], "%Y-%m-%d").strftime("%d/%m/%Y") \
                 if gasto.get("data") else ""
-            f_obs.value   = gasto.get("observacao", "") or ""
+            f_obs.value   = gasto.get("observacao") or ""
             dd_cat.value  = gasto.get("categoria")
             btn_salvar.content.controls[1].value = "Atualizar Gasto"
             btn_cancelar.visible = True
@@ -378,16 +422,20 @@ def main(page: ft.Page):
             page.update()
 
         def on_deletar(e, gasto=g):
-            def confirmar(ev):
+            log(f">>> on_deletar CHAMADO id={gasto.get('id')}")
+            def fechar_dialogo(ev):
                 page.dialog.open = False
                 page.update()
-                if ev.control.text == "Excluir":
-                    ok, err = api_deletar(gasto["id"])
-                    if ok:
-                        snack("Gasto removido!")
-                        recarregar_gastos()
-                    else:
-                        snack(f"Erro: {err}", "#C62828")
+
+            def executar_exclusao(ev):
+                page.dialog.open = False
+                page.update()
+                ok, err = api_deletar(gasto["id"])
+                if ok:
+                    snack("Gasto removido!")
+                    recarregar_gastos()
+                else:
+                    snack(f"Erro: {err}", "#C62828")
 
             page.dialog = ft.AlertDialog(
                 modal=True,
@@ -395,15 +443,14 @@ def main(page: ft.Page):
                                weight=ft.FontWeight.BOLD),
                 content=ft.Text(
                     f"Excluir gasto de R$ {(gasto.get('custo') or 0):,.2f}"
-                    f" ({gasto.get('categoria', '—')})?",
+                    f" ({gasto.get('categoria') or '—'})?",
                     color=COR_SUBTEXTO,
                 ),
                 actions=[
                     ft.TextButton("Cancelar",
                                   style=ft.ButtonStyle(color=COR_SUBTEXTO),
-                                  on_click=confirmar),
-                    ft.ElevatedButton("Excluir", bgcolor="#C62828",
-                                      color="white", on_click=confirmar),
+                                  on_click=fechar_dialogo),
+                    mk_btn("Excluir", executar_exclusao, bgcolor="#C62828"),
                 ],
                 bgcolor=COR_CARD,
                 shape=ft.RoundedRectangleBorder(radius=14),
@@ -430,14 +477,22 @@ def main(page: ft.Page):
                     ft.Text(f"R$ {(g.get('custo') or 0):,.2f}", color=cor,
                             size=15, weight=ft.FontWeight.BOLD),
                     ft.Row([
-                        ft.IconButton(ft.Icons.EDIT_OUTLINED,
-                                      icon_color=COR_SECUNDARIA,
-                                      tooltip="Editar", on_click=on_editar,
-                                      icon_size=18),
-                        ft.IconButton(ft.Icons.DELETE_OUTLINE,
-                                      icon_color="#EF5350",
-                                      tooltip="Excluir", on_click=on_deletar,
-                                      icon_size=18),
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.EDIT_OUTLINED,
+                                            color=COR_SECUNDARIA, size=18),
+                            tooltip="Editar",
+                            on_click=on_editar,
+                            ink=True, border_radius=20,
+                            padding=ft.Padding.all(8),
+                        ),
+                        ft.Container(
+                            content=ft.Icon(ft.Icons.DELETE_OUTLINE,
+                                            color="#EF5350", size=18),
+                            tooltip="Excluir",
+                            on_click=on_deletar,
+                            ink=True, border_radius=20,
+                            padding=ft.Padding.all(8),
+                        ),
                     ], spacing=0),
                 ],
                 alignment=ft.MainAxisAlignment.START,
@@ -450,14 +505,15 @@ def main(page: ft.Page):
         filtrados = filtrar(todos_gastos)
         b64 = gerar_grafico_pizza(filtrados)
         if b64:
-            img_pizza.src_base64 = b64
-            img_pizza.visible = True
-            txt_vazio.visible = False
+            pizza_container.content = ft.Image(
+                src="data:image/png;base64," + b64, width=460, fit="contain"
+            )
         else:
-            img_pizza.visible = False
-            txt_vazio.visible = True
+            pizza_container.content = ft.Text(
+                "Nenhum dado para exibir.", color=COR_SUBTEXTO, size=13
+            )
         lista_cards.controls.clear()
-        for g in sorted(filtrados, key=lambda x: x.get("data", ""), reverse=True):
+        for g in sorted(filtrados, key=lambda x: x.get("data") or "", reverse=True):
             lista_cards.controls.append(card_gasto(g))
         total = sum((g.get("custo") or 0) for g in filtrados)
         total_txt.value = f"Total: R$ {total:,.2f}"
@@ -474,12 +530,13 @@ def main(page: ft.Page):
         log(f"  {len(todos_gastos)} gasto(s) carregado(s)")
         atualizar_dashboard()
 
-    f_busca.on_change = lambda e: atualizar_dashboard()
-    f_de.on_change    = lambda e: atualizar_dashboard()
-    f_ate.on_change   = lambda e: atualizar_dashboard()
+    def aplicar_filtros(e):
+        atualizar_dashboard()
 
     def limpar_filtros(e):
-        f_busca.value = f_de.value = f_ate.value = ""
+        dd_filtro_cat.value = "Todas"
+        f_de.value = ""
+        f_ate.value = ""
         atualizar_dashboard()
 
     tela_dashboard = ft.Container(
@@ -508,10 +565,18 @@ def main(page: ft.Page):
                     padding=ft.Padding.symmetric(horizontal=16, vertical=12),
                     border=ft.Border.all(1, COR_BORDA),
                     content=ft.Row(
-                        [f_busca, f_de, f_ate,
-                         ft.TextButton("Limpar",
-                                       style=ft.ButtonStyle(color=COR_SUBTEXTO),
-                                       on_click=limpar_filtros)],
+                        [
+                            dd_filtro_cat,
+                            f_de,
+                            f_ate,
+                            mk_btn("Filtrar", aplicar_filtros,
+                                   icone=ft.Icons.FILTER_ALT_OUTLINED),
+                            ft.TextButton(
+                                "Limpar",
+                                style=ft.ButtonStyle(color=COR_SUBTEXTO),
+                                on_click=limpar_filtros,
+                            ),
+                        ],
                         spacing=10,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
@@ -532,11 +597,8 @@ def main(page: ft.Page):
                                         color=COR_SUBTEXTO, size=12,
                                         weight=ft.FontWeight.W_600),
                                 ft.Divider(color=COR_BORDA, height=12),
-                                ft.Column(
-                                    [img_pizza, txt_vazio],
-                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                ),
-                            ]),
+                                pizza_container,
+                            ], expand=True),
                         ),
                         ft.Container(
                             expand=True,
@@ -552,137 +614,6 @@ def main(page: ft.Page):
                             ], expand=True),
                         ),
                     ],
-                ),
-            ],
-        ),
-    )
-
-
-    # ── Tela Debug ─────────────────────────────────────────────
-    status_api_icon = ft.Icon(ft.Icons.CIRCLE, color="grey", size=14)
-    status_api_txt  = ft.Text("Não testado", color=COR_SUBTEXTO, size=13)
-    log_view = ft.ListView(expand=True, spacing=2, auto_scroll=True)
-
-    def testar_api(e):
-        log("=== TESTE DE CONEXÃO ===")
-        try:
-            import requests as _req
-            r = _req.get(f"{API_BASE}/todos",
-                         params={"marmiteriaId": MARMITERIA_ID}, timeout=5)
-            log(f"  HTTP {r.status_code}")
-            log(f"  Body: {r.text[:300]}")
-            if r.status_code == 200:
-                status_api_icon.color = "#4CAF50"
-                status_api_txt.value  = f"API OK — {r.status_code}"
-            else:
-                status_api_icon.color = "#FF9800"
-                status_api_txt.value  = f"API erro — {r.status_code}: {r.text[:80]}"
-        except Exception as ex:
-            log(f"  FALHA: {ex}")
-            status_api_icon.color = "#F44336"
-            status_api_txt.value  = f"Sem conexão: {ex}"
-        atualizar_log_view()
-        page.update()
-
-    def testar_inserir(e):
-        log("=== TESTE INSERÇÃO ===")
-        payload = {
-            "custo": 1.0,
-            "categoria": "Outros",
-            "data": date.today().strftime("%Y-%m-%d"),
-            "observacao": "[TESTE DEBUG]",
-        }
-        ok, err = api_inserir(payload)
-        if ok:
-            log("  INSERÇÃO OK!")
-            snack("Teste inserido com sucesso!")
-            recarregar_gastos()
-        else:
-            log(f"  INSERÇÃO FALHOU: {err}")
-            snack(f"Falha: {err}", "#C62828")
-        atualizar_log_view()
-        page.update()
-
-    def limpar_logs(e):
-        _logs.clear()
-        atualizar_log_view()
-        page.update()
-
-    def atualizar_log_view():
-        log_view.controls.clear()
-        for entrada in _logs:
-            cor = "#F44336" if "ERRO" in entrada or "FALHOU" in entrada or "FALHA" in entrada \
-                  else "#4CAF50" if "OK" in entrada \
-                  else "#FF9800" if ">>" in entrada or "==" in entrada \
-                  else COR_SUBTEXTO
-            log_view.controls.append(
-                ft.Text(entrada, color=cor, size=11,
-                        font_family="monospace", selectable=True)
-            )
-
-    tela_debug = ft.Container(
-        expand=True,
-        padding=ft.Padding.all(24),
-        content=ft.Column(
-            expand=True,
-            spacing=16,
-            controls=[
-                ft.Column([
-                    ft.Text("Debug", size=24, weight=ft.FontWeight.BOLD, color=COR_TEXTO),
-                    ft.Text("Diagnóstico de conexão e logs em tempo real",
-                            size=13, color=COR_SUBTEXTO),
-                ], spacing=4),
-                ft.Divider(color=COR_BORDA),
-                ft.Container(
-                    bgcolor=COR_CARD,
-                    border_radius=12,
-                    padding=ft.Padding.all(20),
-                    border=ft.Border.all(1, COR_BORDA),
-                    content=ft.Column([
-                        ft.Text("Status da API", color=COR_SUBTEXTO,
-                                size=12, weight=ft.FontWeight.W_600),
-                        ft.Row([
-                            status_api_icon, status_api_txt,
-                            ft.Text(f"  ({API_BASE})", color=COR_BORDA, size=11),
-                        ]),
-                        ft.Divider(color=COR_BORDA, height=8),
-                        ft.Row([
-                            ft.Container(
-                                content=ft.Text("🔌  Testar conexão", color="white",
-                                               weight=ft.FontWeight.BOLD, size=13),
-                                bgcolor="#1565C0", border_radius=8,
-                                padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-                                on_click=testar_api, ink=True,
-                            ),
-                            ft.Container(
-                                content=ft.Text("➕  Inserir gasto de teste", color="white",
-                                               weight=ft.FontWeight.BOLD, size=13),
-                                bgcolor="#2E7D32", border_radius=8,
-                                padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-                                on_click=testar_inserir, ink=True,
-                            ),
-                            ft.Container(
-                                content=ft.Text("🗑  Limpar logs", color="white",
-                                               weight=ft.FontWeight.BOLD, size=13),
-                                bgcolor="#B71C1C", border_radius=8,
-                                padding=ft.Padding.symmetric(horizontal=16, vertical=10),
-                                on_click=limpar_logs, ink=True,
-                            ),
-                        ], spacing=10),
-                    ], spacing=10),
-                ),
-                ft.Container(
-                    expand=True,
-                    bgcolor=COR_CARD,
-                    border_radius=12,
-                    padding=ft.Padding.all(16),
-                    border=ft.Border.all(1, COR_BORDA),
-                    content=ft.Column([
-                        ft.Text("Log de requisições", color=COR_SUBTEXTO,
-                                size=12, weight=ft.FontWeight.W_600),
-                        ft.Divider(color=COR_BORDA, height=8),
-                        log_view,
-                    ], expand=True),
                 ),
             ],
         ),
@@ -707,11 +638,6 @@ def main(page: ft.Page):
                 selected_icon=ft.Icons.BAR_CHART_ROUNDED,
                 label="Dashboard",
             ),
-            ft.NavigationRailDestination(
-                icon=ft.Icons.BUG_REPORT_OUTLINED,
-                selected_icon=ft.Icons.BUG_REPORT,
-                label="Debug",
-            ),
         ],
         on_change=lambda e: trocar_tela(e.control.selected_index),
     )
@@ -723,10 +649,6 @@ def main(page: ft.Page):
         elif idx == 1:
             area_conteudo.content = tela_dashboard
             recarregar_gastos()
-        else:
-            area_conteudo.content = tela_debug
-            atualizar_log_view()
-            page.update()
 
     sidebar = ft.Container(
         width=88,
@@ -737,7 +659,9 @@ def main(page: ft.Page):
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=0, vertical=18),
                     content=ft.Column([
-                        ft.Text("COMIDA&",size=12, color=COR_PRIMARIA, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                        ft.Text("COMIDA&", size=12, color=COR_PRIMARIA,
+                                weight=ft.FontWeight.BOLD,
+                                text_align=ft.TextAlign.CENTER),
                         ft.Text("AFETO", size=15, color=COR_PRIMARIA,
                                 weight=ft.FontWeight.BOLD,
                                 text_align=ft.TextAlign.CENTER),
