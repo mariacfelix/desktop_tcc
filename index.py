@@ -45,38 +45,51 @@ def api_listar():
     try:
         r = requests.get(f"{API_BASE}/todos",
                          params={"marmiteriaId": MARMITERIA_ID}, timeout=5)
+        log(f"GET /todos → {r.status_code}")
         r.raise_for_status()
-        return r.json(), None
+        dados = r.json()
+        log(f"  {len(dados)} registro(s) retornado(s)")
+        return dados, None
     except Exception as e:
+        log(f"ERRO api_listar: {e}")
         return [], str(e)
 
 
 def api_inserir(payload: dict):
     payload["marmiteria"] = {"id": MARMITERIA_ID}
     try:
+        log(f"POST /inserir → payload: {payload}")
         r = requests.post(f"{API_BASE}/inserir", json=payload, timeout=5)
+        log(f"  status: {r.status_code} | body: {r.text[:200]}")
         r.raise_for_status()
         return True, None
     except Exception as e:
+        log(f"ERRO api_inserir: {e}")
         return False, str(e)
 
 
 def api_atualizar(payload: dict):
     payload["marmiteria"] = {"id": MARMITERIA_ID}
     try:
+        log(f"PUT /atualizar → payload: {payload}")
         r = requests.put(f"{API_BASE}/atualizar", json=payload, timeout=5)
+        log(f"  status: {r.status_code} | body: {r.text[:200]}")
         r.raise_for_status()
         return True, None
     except Exception as e:
+        log(f"ERRO api_atualizar: {e}")
         return False, str(e)
 
 
 def api_deletar(gasto_id: int):
     try:
+        log(f"DELETE /remover/{gasto_id}")
         r = requests.delete(f"{API_BASE}/remover/{gasto_id}", timeout=5)
+        log(f"  status: {r.status_code}")
         r.raise_for_status()
         return True, None
     except Exception as e:
+        log(f"ERRO api_deletar: {e}")
         return False, str(e)
 
 
@@ -86,7 +99,7 @@ def gerar_grafico_pizza(gastos: list) -> Optional[str]:
         return None
     totais = {}
     for g in gastos:
-        cat = g.get("categoria", "Outros")
+        cat = g.get("categoria") or "Outros"
         totais[cat] = totais.get(cat, 0) + (g.get("custo") or 0)
     if not totais or sum(totais.values()) == 0:
         return None
@@ -134,6 +147,19 @@ def mk_campo(label, **kw):
         **kw,
     )
 
+
+
+# ── Debug global ──────────────────────────────────────────
+_logs: list = []
+
+def log(msg: str):
+    from datetime import datetime as _dt
+    entrada = f"[{_dt.now().strftime('%H:%M:%S')}] {msg}"
+    _logs.append(entrada)
+    print(entrada)  # também imprime no terminal
+    if len(_logs) > 200:
+        _logs.pop(0)
+# ───────────────────────────────────────────────────────────
 
 
 def main(page: ft.Page):
@@ -189,11 +215,14 @@ def main(page: ft.Page):
     btn_cancelar.on_click = lambda e: limpar_form()
 
     def salvar_gasto(e):
+        log(">>> salvar_gasto CHAMADO")
         custo_str = (f_custo.value or "").replace(",", ".")
         categoria = dd_cat.value
         data_str  = (f_data.value or "").strip()
+        log(f"  custo={custo_str!r} categoria={categoria!r} data={data_str!r}")
 
         if not custo_str or not categoria:
+            log("  VALIDAÇÃO FALHOU: custo ou categoria vazio")
             snack("Preencha valor e categoria!", "#C62828"); return
         try:
             custo = float(custo_str)
@@ -238,14 +267,14 @@ def main(page: ft.Page):
         bgcolor=COR_PRIMARIA,
         border_radius=10,
         height=44,
-        padding=ft.padding.symmetric(horizontal=20, vertical=0),
+        padding=ft.Padding.symmetric(horizontal=20, vertical=0),
         on_click=salvar_gasto,
         ink=True,
     )
 
     tela_lancamento = ft.Container(
         expand=True,
-        padding=ft.padding.all(36),
+        padding=ft.Padding.all(36),
         content=ft.Column(
             scroll=ft.ScrollMode.AUTO,
             spacing=20,
@@ -260,7 +289,7 @@ def main(page: ft.Page):
                 ft.Container(
                     bgcolor=COR_CARD,
                     border_radius=16,
-                    padding=ft.padding.all(24),
+                    padding=ft.Padding.all(24),
                     border=ft.Border.all(1, COR_BORDA),
                     content=ft.Column(
                         spacing=16,
@@ -326,17 +355,17 @@ def main(page: ft.Page):
         return res
 
     def card_gasto(g: dict):
-        cor = CORES_CATEGORIA.get(g.get("categoria", ""), COR_PRIMARIA)
+        cor = CORES_CATEGORIA.get(g.get("categoria") or "", COR_PRIMARIA)
         try:
             data_fmt = datetime.strptime(g["data"][:10], "%Y-%m-%d").strftime("%d/%m/%Y")
         except Exception:
-            data_fmt = g.get("data", "—")
+            data_fmt = g.get("data") or "—"
         obs = g.get("observacao") or ""
 
         def on_editar(e, gasto=g):
             gasto_editando.clear()
             gasto_editando.update(gasto)
-            f_custo.value = str(gasto.get("custo", ""))
+            f_custo.value = str(gasto.get("custo") or "")
             f_data.value  = datetime.strptime(
                 gasto["data"][:10], "%Y-%m-%d").strftime("%d/%m/%Y") \
                 if gasto.get("data") else ""
@@ -365,7 +394,7 @@ def main(page: ft.Page):
                 title=ft.Text("Confirmar exclusão", color=COR_TEXTO,
                                weight=ft.FontWeight.BOLD),
                 content=ft.Text(
-                    f"Excluir gasto de R$ {gasto.get('custo', 0):,.2f}"
+                    f"Excluir gasto de R$ {(gasto.get('custo') or 0):,.2f}"
                     f" ({gasto.get('categoria', '—')})?",
                     color=COR_SUBTEXTO,
                 ),
@@ -385,20 +414,20 @@ def main(page: ft.Page):
         return ft.Container(
             bgcolor=COR_CARD,
             border_radius=12,
-            padding=ft.padding.symmetric(horizontal=18, vertical=12),
+            padding=ft.Padding.symmetric(horizontal=18, vertical=12),
             border=ft.Border(left=ft.BorderSide(4, cor)),
             content=ft.Row(
                 controls=[
                     ft.Container(width=8, height=8, bgcolor=cor, border_radius=4),
                     ft.Column([
-                        ft.Text(g.get("categoria", "—"), color=COR_TEXTO,
+                        ft.Text(g.get("categoria") or "—", color=COR_TEXTO,
                                 size=14, weight=ft.FontWeight.W_600),
                         ft.Text(
-                            data_fmt + (f"  •  {obs}" if obs else ""),
+                            (data_fmt or "—") + (f"  •  {obs}" if obs else ""),
                             color=COR_SUBTEXTO, size=11,
                         ),
                     ], spacing=2, expand=True),
-                    ft.Text(f"R$ {g.get('custo', 0):,.2f}", color=cor,
+                    ft.Text(f"R$ {(g.get('custo') or 0):,.2f}", color=cor,
                             size=15, weight=ft.FontWeight.BOLD),
                     ft.Row([
                         ft.IconButton(ft.Icons.EDIT_OUTLINED,
@@ -436,10 +465,13 @@ def main(page: ft.Page):
 
     def recarregar_gastos():
         nonlocal todos_gastos
+        log(">>> recarregar_gastos")
         dados, err = api_listar()
         if err:
+            log(f"  ERRO ao listar: {err}")
             snack(f"Erro na API: {err}", "#C62828")
         todos_gastos = dados
+        log(f"  {len(todos_gastos)} gasto(s) carregado(s)")
         atualizar_dashboard()
 
     f_busca.on_change = lambda e: atualizar_dashboard()
@@ -452,7 +484,7 @@ def main(page: ft.Page):
 
     tela_dashboard = ft.Container(
         expand=True,
-        padding=ft.padding.all(24),
+        padding=ft.Padding.all(24),
         content=ft.Column(
             expand=True,
             spacing=16,
@@ -473,7 +505,7 @@ def main(page: ft.Page):
                 ft.Container(
                     bgcolor=COR_CARD,
                     border_radius=12,
-                    padding=ft.padding.symmetric(horizontal=16, vertical=12),
+                    padding=ft.Padding.symmetric(horizontal=16, vertical=12),
                     border=ft.Border.all(1, COR_BORDA),
                     content=ft.Row(
                         [f_busca, f_de, f_ate,
@@ -494,7 +526,7 @@ def main(page: ft.Page):
                             bgcolor=COR_CARD,
                             border_radius=14,
                             border=ft.Border.all(1, COR_BORDA),
-                            padding=ft.padding.all(20),
+                            padding=ft.Padding.all(20),
                             content=ft.Column([
                                 ft.Text("Gastos por Categoria",
                                         color=COR_SUBTEXTO, size=12,
@@ -511,7 +543,7 @@ def main(page: ft.Page):
                             bgcolor=COR_CARD,
                             border_radius=14,
                             border=ft.Border.all(1, COR_BORDA),
-                            padding=ft.padding.all(20),
+                            padding=ft.Padding.all(20),
                             content=ft.Column([
                                 ft.Text("Lançamentos", color=COR_SUBTEXTO,
                                         size=12, weight=ft.FontWeight.W_600),
@@ -525,6 +557,136 @@ def main(page: ft.Page):
         ),
     )
 
+
+    # ── Tela Debug ─────────────────────────────────────────────
+    status_api_icon = ft.Icon(ft.Icons.CIRCLE, color="grey", size=14)
+    status_api_txt  = ft.Text("Não testado", color=COR_SUBTEXTO, size=13)
+    log_view = ft.ListView(expand=True, spacing=2, auto_scroll=True)
+
+    def testar_api(e):
+        log("=== TESTE DE CONEXÃO ===")
+        try:
+            import requests as _req
+            r = _req.get(f"{API_BASE}/todos",
+                         params={"marmiteriaId": MARMITERIA_ID}, timeout=5)
+            log(f"  HTTP {r.status_code}")
+            log(f"  Body: {r.text[:300]}")
+            if r.status_code == 200:
+                status_api_icon.color = "#4CAF50"
+                status_api_txt.value  = f"API OK — {r.status_code}"
+            else:
+                status_api_icon.color = "#FF9800"
+                status_api_txt.value  = f"API erro — {r.status_code}: {r.text[:80]}"
+        except Exception as ex:
+            log(f"  FALHA: {ex}")
+            status_api_icon.color = "#F44336"
+            status_api_txt.value  = f"Sem conexão: {ex}"
+        atualizar_log_view()
+        page.update()
+
+    def testar_inserir(e):
+        log("=== TESTE INSERÇÃO ===")
+        payload = {
+            "custo": 1.0,
+            "categoria": "Outros",
+            "data": date.today().strftime("%Y-%m-%d"),
+            "observacao": "[TESTE DEBUG]",
+        }
+        ok, err = api_inserir(payload)
+        if ok:
+            log("  INSERÇÃO OK!")
+            snack("Teste inserido com sucesso!")
+            recarregar_gastos()
+        else:
+            log(f"  INSERÇÃO FALHOU: {err}")
+            snack(f"Falha: {err}", "#C62828")
+        atualizar_log_view()
+        page.update()
+
+    def limpar_logs(e):
+        _logs.clear()
+        atualizar_log_view()
+        page.update()
+
+    def atualizar_log_view():
+        log_view.controls.clear()
+        for entrada in _logs:
+            cor = "#F44336" if "ERRO" in entrada or "FALHOU" in entrada or "FALHA" in entrada \
+                  else "#4CAF50" if "OK" in entrada \
+                  else "#FF9800" if ">>" in entrada or "==" in entrada \
+                  else COR_SUBTEXTO
+            log_view.controls.append(
+                ft.Text(entrada, color=cor, size=11,
+                        font_family="monospace", selectable=True)
+            )
+
+    tela_debug = ft.Container(
+        expand=True,
+        padding=ft.Padding.all(24),
+        content=ft.Column(
+            expand=True,
+            spacing=16,
+            controls=[
+                ft.Column([
+                    ft.Text("Debug", size=24, weight=ft.FontWeight.BOLD, color=COR_TEXTO),
+                    ft.Text("Diagnóstico de conexão e logs em tempo real",
+                            size=13, color=COR_SUBTEXTO),
+                ], spacing=4),
+                ft.Divider(color=COR_BORDA),
+                ft.Container(
+                    bgcolor=COR_CARD,
+                    border_radius=12,
+                    padding=ft.Padding.all(20),
+                    border=ft.Border.all(1, COR_BORDA),
+                    content=ft.Column([
+                        ft.Text("Status da API", color=COR_SUBTEXTO,
+                                size=12, weight=ft.FontWeight.W_600),
+                        ft.Row([
+                            status_api_icon, status_api_txt,
+                            ft.Text(f"  ({API_BASE})", color=COR_BORDA, size=11),
+                        ]),
+                        ft.Divider(color=COR_BORDA, height=8),
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Text("🔌  Testar conexão", color="white",
+                                               weight=ft.FontWeight.BOLD, size=13),
+                                bgcolor="#1565C0", border_radius=8,
+                                padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+                                on_click=testar_api, ink=True,
+                            ),
+                            ft.Container(
+                                content=ft.Text("➕  Inserir gasto de teste", color="white",
+                                               weight=ft.FontWeight.BOLD, size=13),
+                                bgcolor="#2E7D32", border_radius=8,
+                                padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+                                on_click=testar_inserir, ink=True,
+                            ),
+                            ft.Container(
+                                content=ft.Text("🗑  Limpar logs", color="white",
+                                               weight=ft.FontWeight.BOLD, size=13),
+                                bgcolor="#B71C1C", border_radius=8,
+                                padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+                                on_click=limpar_logs, ink=True,
+                            ),
+                        ], spacing=10),
+                    ], spacing=10),
+                ),
+                ft.Container(
+                    expand=True,
+                    bgcolor=COR_CARD,
+                    border_radius=12,
+                    padding=ft.Padding.all(16),
+                    border=ft.Border.all(1, COR_BORDA),
+                    content=ft.Column([
+                        ft.Text("Log de requisições", color=COR_SUBTEXTO,
+                                size=12, weight=ft.FontWeight.W_600),
+                        ft.Divider(color=COR_BORDA, height=8),
+                        log_view,
+                    ], expand=True),
+                ),
+            ],
+        ),
+    )
 
     area_conteudo = ft.Container(expand=True, content=tela_lancamento)
 
@@ -545,15 +707,25 @@ def main(page: ft.Page):
                 selected_icon=ft.Icons.BAR_CHART_ROUNDED,
                 label="Dashboard",
             ),
+            ft.NavigationRailDestination(
+                icon=ft.Icons.BUG_REPORT_OUTLINED,
+                selected_icon=ft.Icons.BUG_REPORT,
+                label="Debug",
+            ),
         ],
         on_change=lambda e: trocar_tela(e.control.selected_index),
     )
 
     def trocar_tela(idx: int):
-        area_conteudo.content = tela_lancamento if idx == 0 else tela_dashboard
-        if idx == 1:
+        if idx == 0:
+            area_conteudo.content = tela_lancamento
+            page.update()
+        elif idx == 1:
+            area_conteudo.content = tela_dashboard
             recarregar_gastos()
         else:
+            area_conteudo.content = tela_debug
+            atualizar_log_view()
             page.update()
 
     sidebar = ft.Container(
@@ -563,7 +735,7 @@ def main(page: ft.Page):
         content=ft.Column(
             [
                 ft.Container(
-                    padding=ft.padding.symmetric(horizontal=0, vertical=18),
+                    padding=ft.Padding.symmetric(horizontal=0, vertical=18),
                     content=ft.Column([
                         ft.Text("COMIDA&",size=12, color=COR_PRIMARIA, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
                         ft.Text("AFETO", size=15, color=COR_PRIMARIA,
