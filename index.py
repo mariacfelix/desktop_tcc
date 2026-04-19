@@ -72,7 +72,7 @@ def api_listar():
         return [], str(e)
 
 def api_inserir(payload: dict):
-    payload["marmiteria"] = {"id": MARMITERIA_ID}
+    payload["marmiteriaId"] = MARMITERIA_ID
     try:
         log(f"POST /inserir → payload: {payload}")
         r = requests.post(f"{API_BASE}/inserir", json=payload, timeout=5)
@@ -193,11 +193,7 @@ def main(page: ft.Page):
         page.update()
 
     def dialogo_sucesso(categoria: str, custo: float):
-        def fechar(e):
-            page.dialog.open = False
-            page.update()
-
-        page.dialog = ft.AlertDialog(
+        dlg = ft.AlertDialog(
             modal=True,
             title=ft.Row([
                 ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color="#4CAF50", size=28),
@@ -209,11 +205,15 @@ def main(page: ft.Page):
                 ft.Text(f"Valor: R$ {custo:,.2f}", color=COR_DESTAQUE,
                         size=16, weight=ft.FontWeight.BOLD),
             ], spacing=8, tight=True),
-            actions=[mk_btn("OK", fechar)],
             bgcolor=COR_CARD,
             shape=ft.RoundedRectangleBorder(radius=14),
         )
-        page.dialog.open = True
+        def fechar(e):
+            dlg.open = False
+            page.update()
+        dlg.actions = [mk_btn("OK", fechar)]
+        page.overlay.append(dlg)
+        dlg.open = True
         page.update()
 
     f_custo = mk_campo("Valor (R$)", keyboard_type=ft.KeyboardType.NUMBER, width=180)
@@ -424,11 +424,11 @@ def main(page: ft.Page):
         def on_deletar(e, gasto=g):
             log(f">>> on_deletar CHAMADO id={gasto.get('id')}")
             def fechar_dialogo(ev):
-                page.dialog.open = False
+                dlg_confirm.open = False
                 page.update()
 
             def executar_exclusao(ev):
-                page.dialog.open = False
+                dlg_confirm.open = False
                 page.update()
                 ok, err = api_deletar(gasto["id"])
                 if ok:
@@ -437,7 +437,7 @@ def main(page: ft.Page):
                 else:
                     snack(f"Erro: {err}", "#C62828")
 
-            page.dialog = ft.AlertDialog(
+            dlg_confirm = ft.AlertDialog(
                 modal=True,
                 title=ft.Text("Confirmar exclusão", color=COR_TEXTO,
                                weight=ft.FontWeight.BOLD),
@@ -455,7 +455,8 @@ def main(page: ft.Page):
                 bgcolor=COR_CARD,
                 shape=ft.RoundedRectangleBorder(radius=14),
             )
-            page.dialog.open = True
+            page.overlay.append(dlg_confirm)
+            dlg_confirm.open = True
             page.update()
 
         return ft.Container(
