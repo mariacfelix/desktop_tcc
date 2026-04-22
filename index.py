@@ -30,15 +30,15 @@ CORES_CATEGORIA = {
     "Outros":        "#8B4513",
 }
 
-COR_PRIMARIA   = "#902802"
+COR_PRIMARIA   = "#A0522D"
 COR_SECUNDARIA = "#FF8C42"
-COR_FUNDO      = "#1A0D00"
-COR_CARD       = "#2A1900"
-COR_SIDEBAR    = "#110C00"
+COR_FUNDO      = "#Ece0d4"
+COR_CARD       = "#e6d4ba"
+COR_SIDEBAR    = "#e6d4ba"
 COR_BORDA      = "#563903"
-COR_TEXTO      = "#FFFFFF"
-COR_SUBTEXTO   = "#C9A876"
-COR_DESTAQUE   = "#F79800"
+COR_TEXTO      = "#2C2C2C"
+COR_SUBTEXTO   = "#4A4A4A"
+COR_DESTAQUE   = "#CC7722"
 
 _logs: list = []
 
@@ -654,21 +654,15 @@ def main(page: ft.Page):
     sidebar = ft.Container(
         width=88,
         bgcolor=COR_SIDEBAR,
-        border=ft.Border(right=ft.BorderSide(1, COR_BORDA)),
+        border=ft.Border(right=ft.BorderSide(1, COR_SUBTEXTO)),
         content=ft.Column(
             [
                 ft.Container(
                     padding=ft.Padding.symmetric(horizontal=0, vertical=18),
                     content=ft.Column([
-                        ft.Text("COMIDA&", size=12, color=COR_PRIMARIA,
-                                weight=ft.FontWeight.BOLD,
-                                text_align=ft.TextAlign.CENTER),
-                        ft.Text("AFETO", size=15, color=COR_PRIMARIA,
-                                weight=ft.FontWeight.BOLD,
-                                text_align=ft.TextAlign.CENTER),
+                        ft.Image(src="assets/images/logo.png", width=100, height=100),
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
                 ),
-                ft.Divider(color=COR_BORDA, height=1),
                 ft.Container(expand=True, content=nav_rail),
             ],
             spacing=0,
