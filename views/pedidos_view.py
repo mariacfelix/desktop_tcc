@@ -1,0 +1,253 @@
+import flet as ft
+from datetime import date, datetime, timedelta
+from models.constants import (
+    COR_FUNDO, COR_CARD, COR_BORDA, COR_PRIMARIA, COR_SECUNDARIA,
+    COR_TEXTO, COR_SUBTEXTO, COR_DESTAQUE, COR_ERRO, COR_SUCESSO,
+)
+from views.components import mk_btn, mk_titulo, mk_subtitulo, mk_secao_label
+from views.components import mk_dialogo_confirmacao
+from utils.impressora import imprimir_etiqueta, imprimir_etiquetas_lote, preview_etiqueta
+
+
+def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
+    lista_pedidos   = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=8, expand=True)
+    _pedidos_state: list = []
+    _checks: dict        = {}
+
+    def snack(msg: str, cor: str = COR_SUCESSO):
+        page.snack_bar = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=cor, duration=2500)
+        page.snack_bar.open = True
+        page.update()
+
+    def fechar_dialogo(e=None):
+        if page.dialog:
+            page.dialog.open = False
+        page.update()
+
+    def _preview_etiqueta_widget(pedido: dict) -> ft.Container:
+        nome_cliente  = pedido.get("nomeCliente") or "—"
+        cardapio_nome = pedido.get("cardapioNome") or "—"
+        ings          = pedido.get("ingredientes") or []
+        validade      = (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")
+        nome_marmit   = state.get("marmiteria_nome") or "Comida & Afeto"
+
+        itens_ings = [
+            ft.Row([
+                ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, size=8, color=COR_PRIMARIA),
+                ft.Text(i.get("nome", "—"), size=12, color=COR_SUBTEXTO),
+            ], spacing=4)
+            for i in ings
+        ] if ings else [ft.Text("Sem ingredientes", size=12, color=COR_SUBTEXTO)]
+
+        return ft.Container(
+            width=210,
+            bgcolor=COR_FUNDO, border_radius=8,
+            padding=ft.Padding.all(16),
+            border=ft.Border.all(2, COR_BORDA),
+            content=ft.Column([
+                ft.Row([
+                    ft.Image(src="assets/images/logo.png", width=32, height=32),
+                    ft.Text("Comida & Afeto", size=13, weight=ft.FontWeight.BOLD, color=COR_PRIMARIA),
+                ], spacing=6),
+                ft.Text(nome_marmit, size=10, color=COR_SUBTEXTO),
+                ft.Divider(color=COR_BORDA),
+                ft.Text(f"Cliente:", size=10, color=COR_SUBTEXTO),
+                ft.Text(nome_cliente, size=12, weight=ft.FontWeight.BOLD, color=COR_TEXTO),
+                ft.Text(f"Cardápio: {cardapio_nome}", size=10, color=COR_SUBTEXTO),
+                ft.Divider(color=COR_BORDA),
+                ft.Text("Ingredientes:", size=10, weight=ft.FontWeight.W_600, color=COR_TEXTO),
+                *itens_ings,
+                ft.Divider(color=COR_BORDA),
+                ft.Text(f"Validade: {validade}", size=12, weight=ft.FontWeight.BOLD, color=COR_DESTAQUE),
+            ], spacing=4),
+        )
+
+    def abrir_preview_etiqueta(pedido: dict):
+        nome_marmit = state.get("marmiteria_nome") or "Comida & Afeto"
+
+        def imprimir(e):
+            fechar_dialogo()
+            ok, err = imprimir_etiqueta(pedido, nome_marmit)
+            if ok:
+                snack("Etiqueta enviada para impressão!")
+            else:
+                snack(f"Erro na impressora: {err}", COR_ERRO)
+
+        page.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row([
+                ft.Icon(ft.Icons.LABEL_OUTLINE, color=COR_PRIMARIA, size=24),
+                ft.Text("  Preview da Etiqueta", color=COR_TEXTO, weight=ft.FontWeight.BOLD),
+            ]),
+            content=ft.Column([
+                ft.Text("Preview (55mm):", color=COR_SUBTEXTO, size=11),
+                _preview_etiqueta_widget(pedido),
+            ], spacing=8, tight=True),
+            actions=[
+                ft.TextButton("Fechar", style=ft.ButtonStyle(color=COR_SUBTEXTO), on_click=fechar_dialogo),
+                mk_btn("Imprimir", imprimir, ft.Icons.PRINT),
+            ],
+            bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
+        )
+        page.dialog.open = True
+        page.update()
+
+    def imprimir_selecionados(e):
+        selecionados = [p for p in _pedidos_state if _checks.get(p.get("id")) and _checks[p.get("id")].value]
+        if not selecionados:
+            snack("Selecione ao menos um pedido!", COR_ERRO)
+            return
+
+        nome_marmit = state.get("marmiteria_nome") or "Comida & Afeto"
+
+        def confirmar_impressao(ev):
+            fechar_dialogo()
+            ok, err = imprimir_etiquetas_lote(selecionados, nome_marmit)
+            if ok:
+                snack(f"{len(selecionados)} etiqueta(s) enviadas para impressão!")
+            else:
+                snack(f"Erro na impressora: {err}", COR_ERRO)
+
+        etiquetas_preview = []
+        for p in selecionados:
+            etiquetas_preview.append(_preview_etiqueta_widget(p))
+            etiquetas_preview.append(ft.Divider(color=COR_BORDA, height=12))
+
+        page.dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row([
+                ft.Icon(ft.Icons.PRINT, color=COR_PRIMARIA, size=24),
+                ft.Text(f"  Imprimir {len(selecionados)} etiqueta(s)", color=COR_TEXTO, weight=ft.FontWeight.BOLD),
+            ]),
+            content=ft.Container(
+                width=400, height=500,
+                content=ft.Column(etiquetas_preview, scroll=ft.ScrollMode.AUTO, spacing=0),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", style=ft.ButtonStyle(color=COR_SUBTEXTO), on_click=fechar_dialogo),
+                mk_btn("Confirmar impressão", confirmar_impressao, ft.Icons.PRINT),
+            ],
+            bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
+        )
+        page.dialog.open = True
+        page.update()
+
+    def selecionar_todos(e):
+        for chk in _checks.values():
+            chk.value = True
+            chk.update()
+
+    def desselecionar_todos(e):
+        for chk in _checks.values():
+            chk.value = False
+            chk.update()
+
+    def recarregar():
+        nonlocal _pedidos_state
+        dados, _ = api_pedido.listar(state["marmiteria_id"])
+        _pedidos_state = dados or []
+        _checks.clear()
+        lista_pedidos.controls.clear()
+
+        if not _pedidos_state:
+            lista_pedidos.controls.append(
+                ft.Text("Nenhum pedido encontrado.", color=COR_SUBTEXTO, size=13))
+        else:
+            for p in sorted(_pedidos_state, key=lambda x: x.get("dataCriada") or "", reverse=True):
+                pid          = p.get("id")
+                nome         = p.get("nomeCliente") or "—"
+                cardapio_nom = p.get("cardapioNome") or "—"
+                valor        = p.get("valor") or 0
+                status_val   = p.get("status") or "—"
+                ings         = p.get("ingredientes") or []
+
+                cor_status    = COR_SUCESSO if status_val == "PENDENTE" else COR_SUBTEXTO
+                icone_status  = ft.Icons.PENDING_ACTIONS if status_val == "PENDENTE" else ft.Icons.CHECK_CIRCLE_OUTLINE
+
+                chk = ft.Checkbox(value=False, active_color=COR_PRIMARIA)
+                _checks[pid] = chk
+
+                def on_deletar(e, ped=p):
+                    mk_dialogo_confirmacao(
+                        page,
+                        "Excluir pedido?",
+                        f"Excluir pedido de {ped.get('nomeCliente', '—')}?",
+                        lambda: (api_pedido.remover(ped["id"]), recarregar()),
+                    )
+
+                lista_pedidos.controls.append(ft.Container(
+                    bgcolor=COR_FUNDO, border_radius=12,
+                    padding=ft.Padding.symmetric(horizontal=14, vertical=12),
+                    border=ft.Border(left=ft.BorderSide(4, COR_PRIMARIA)),
+                    content=ft.Row([
+                        chk,
+                        ft.Column([
+                            ft.Text(nome, color=COR_TEXTO, size=14, weight=ft.FontWeight.W_600),
+                            ft.Text(f"Cardápio: {cardapio_nom}  •  {len(ings)} ingrediente(s)",
+                                    color=COR_SUBTEXTO, size=11),
+                            ft.Row([
+                                ft.Icon(icone_status, color=cor_status, size=12),
+                                ft.Text(status_val, color=cor_status, size=11, weight=ft.FontWeight.W_600),
+                            ], spacing=4),
+                        ], spacing=3, expand=True),
+                        ft.Text(f"R$ {float(valor):,.2f}", color=COR_DESTAQUE,
+                                size=15, weight=ft.FontWeight.BOLD),
+                        ft.Row([
+                            ft.IconButton(
+                                ft.Icons.LABEL_OUTLINE, icon_color=COR_DESTAQUE,
+                                tooltip="Ver etiqueta",
+                                on_click=lambda e, ped=p: abrir_preview_etiqueta(ped),
+                                icon_size=20,
+                            ),
+                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color=COR_ERRO,
+                                          tooltip="Excluir", on_click=on_deletar, icon_size=20),
+                        ], spacing=0),
+                    ], alignment=ft.MainAxisAlignment.START,
+                       vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                ))
+
+        page.update()
+
+    barra_acoes = ft.Container(
+        bgcolor=COR_CARD, border_radius=10,
+        padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+        border=ft.Border.all(1, COR_BORDA),
+        content=ft.Row([
+            ft.TextButton(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.CHECK_BOX_OUTLINED, color=COR_PRIMARIA, size=16),
+                    ft.Text("Selecionar todos", color=COR_PRIMARIA, size=13),
+                ], spacing=4, tight=True),
+                on_click=selecionar_todos,
+            ),
+            ft.TextButton(
+                content=ft.Row([
+                    ft.Icon(ft.Icons.CHECK_BOX_OUTLINE_BLANK, color=COR_SUBTEXTO, size=16),
+                    ft.Text("Desmarcar todos", color=COR_SUBTEXTO, size=13),
+                ], spacing=4, tight=True),
+                on_click=desselecionar_todos,
+            ),
+            ft.Container(expand=True),
+            mk_btn("Imprimir selecionados", imprimir_selecionados, ft.Icons.PRINT_OUTLINED),
+        ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+    )
+
+    container = ft.Container(
+        expand=True, padding=ft.Padding.all(30),
+        content=ft.Column(expand=True, spacing=16, controls=[
+            ft.Row([
+                ft.Column([
+                    mk_titulo("Pedidos"),
+                    mk_subtitulo("Pedidos recebidos pela sua marmitaria"),
+                ], spacing=2, expand=True),
+                ft.IconButton(ft.Icons.REFRESH_ROUNDED, icon_color=COR_SECUNDARIA,
+                              tooltip="Atualizar", on_click=lambda e: recarregar()),
+            ]),
+            ft.Divider(color=COR_BORDA),
+            barra_acoes,
+            lista_pedidos,
+        ]),
+    )
+
+    container.recarregar = recarregar
+    return container
