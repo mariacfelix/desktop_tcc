@@ -31,6 +31,7 @@ def build_gastos_view(page: ft.Page, api_gastos, state: dict, gasto_editando: di
         label="Categoria",
         options=[ft.dropdown.Option(c) for c in CATEGORIAS],
         bgcolor=COR_CARD, color=COR_TEXTO,
+        fill_color= COR_TEXTO,
         label_style=ft.TextStyle(color=COR_SUBTEXTO),
         border_color=COR_BORDA, focused_border_color=COR_PRIMARIA,
         border_radius=10, expand=True,

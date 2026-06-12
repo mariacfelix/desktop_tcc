@@ -111,5 +111,8 @@ class PedidoClient:
     def inserir(self, payload: dict):
         return _post(f"{self.base}/inserir", payload)
 
+    def atualizar_status(self, pedido_id: int, status: str):
+        return _patch(f"{self.base}/status/{pedido_id}", {"status": status})
+
     def remover(self, pedido_id: int):
         return _delete(f"{self.base}/remover/{pedido_id}")

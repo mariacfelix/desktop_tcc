@@ -111,11 +111,11 @@ def main(page: ft.Page):
     botoes_nav[0].content.controls[1].color         = "white"
 
     sidebar = ft.Container(
-        width=110, bgcolor=COR_SIDEBAR,
+        width=115, bgcolor=COR_SIDEBAR,
         border=ft.Border(right=ft.BorderSide(1, COR_BORDA)),
         content=ft.Column([
             ft.Container(
-                width=110,
+                width=115,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=18),
                 content=ft.Column([
                     ft.Container(
