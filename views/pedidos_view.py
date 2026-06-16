@@ -19,7 +19,7 @@ STATUS_CONFIG = {
 
 STATUS_PROXIMOS = {
     "PENDENTE":    ["CONFIRMADO", "CANCELADO"],
-    "CONFIRMADO":  ["EM_PRODUCAO", "CANCELADO"],
+    "CONFIRMADO":  ["EM_PRODUCAO"],
     "EM_PRODUCAO": ["PRONTO"],
     "PRONTO":      ["ENTREGUE"],
     "ENTREGUE":    [],
@@ -33,8 +33,8 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
     _checks:         dict      = {}
 
     def snack(msg: str, cor: str = COR_SUCESSO):
-        page.snack_bar = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=cor, duration=2500)
-        page.snack_bar.open = True
+        sb = ft.SnackBar(content=ft.Text(msg, color="white"), bgcolor=cor, duration=2500, open=True)
+        page.overlay.append(sb)
         page.update()
 
     def fechar_dialogo(e=None):
@@ -318,10 +318,15 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
                                         weight=ft.FontWeight.W_600),
                             ], spacing=4),
                             ft.Container(height=4),
-                            ft.TextButton(
-                                "Ver detalhes",
-                                style=ft.ButtonStyle(color=COR_PRIMARIA),
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.INFO_OUTLINE, color=COR_PRIMARIA, size=14),
+                                    ft.Text("Ver detalhes", color=COR_PRIMARIA, size=12,
+                                            weight=ft.FontWeight.W_600),
+                                ], spacing=4, tight=True),
                                 on_click=lambda e, ped=p: abrir_detalhes(ped),
+                                ink=True, border_radius=8,
+                                padding=ft.Padding.symmetric(horizontal=8, vertical=6),
                             ),
                         ], horizontal_alignment=ft.CrossAxisAlignment.END, spacing=0),
                     ], alignment=ft.MainAxisAlignment.START,

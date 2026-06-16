@@ -5,7 +5,6 @@ from models.constants import (
     COR_TEXTO, COR_SUBTEXTO, COR_ERRO, COR_SUCESSO,
 )
 from views.components import mk_campo, mk_btn, mk_card, mk_titulo, mk_subtitulo, mk_secao_label
-from views.components import mk_dialogo_sucesso
 from utils.mascara import aplicar_mascara_data
 
 
@@ -29,9 +28,8 @@ def build_gastos_view(page: ft.Page, api_gastos, state: dict, gasto_editando: di
 
     dd_cat = ft.Dropdown(
         label="Categoria",
-        options=[ft.dropdown.Option(c) for c in CATEGORIAS],
-        bgcolor=COR_CARD, color=COR_TEXTO,
-        fill_color= COR_TEXTO,
+        options=[ft.dropdown.Option(key=c, content=ft.Text(c, color=COR_TEXTO)) for c in CATEGORIAS],
+        bgcolor=COR_CARD,
         label_style=ft.TextStyle(color=COR_SUBTEXTO),
         border_color=COR_BORDA, focused_border_color=COR_PRIMARIA,
         border_radius=10, expand=True,
@@ -45,8 +43,8 @@ def build_gastos_view(page: ft.Page, api_gastos, state: dict, gasto_editando: di
     )
 
     def snack(msg: str, cor: str = COR_SUCESSO):
-        page.snack_bar = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=cor, duration=2500)
-        page.snack_bar.open = True
+        sb = ft.SnackBar(content=ft.Text(msg, color="white"), bgcolor=cor, duration=2500, open=True)
+        page.overlay.append(sb)
         page.update()
 
     def limpar_form():
@@ -97,7 +95,7 @@ def build_gastos_view(page: ft.Page, api_gastos, state: dict, gasto_editando: di
                 ok, err = api_gastos.inserir(payload)
                 if ok:
                     limpar_form()
-                    mk_dialogo_sucesso(page, "Gasto registrado!", f"{categoria} — R$ {custo:,.2f}")
+                    snack("Gasto registrado com sucesso!")
                 else:
                     snack(f"Erro: {err}", COR_ERRO)
         finally:

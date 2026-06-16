@@ -29,7 +29,7 @@ def build_dashboard_view(
 
     dd_filtro_cat = ft.Dropdown(
         label="Categoria", value="Todas",
-        options=[ft.dropdown.Option("Todas")] + [ft.dropdown.Option(c) for c in CATEGORIAS],
+        options=[ft.dropdown.Option("Todas")] + [ft.dropdown.Option(key=c, content=ft.Text(c, color=COR_TEXTO)) for c in CATEGORIAS],
         bgcolor=COR_CARD, color=COR_TEXTO,
         label_style=ft.TextStyle(color=COR_SUBTEXTO),
         border_color=COR_BORDA, focused_border_color=COR_PRIMARIA,
@@ -49,8 +49,8 @@ def build_dashboard_view(
     f_ate.on_change = on_filtro_data
 
     def snack(msg: str, cor: str = COR_SUCESSO):
-        page.snack_bar = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=cor, duration=2500)
-        page.snack_bar.open = True
+        sb = ft.SnackBar(content=ft.Text(msg, color="white"), bgcolor=cor, duration=2500, open=True)
+        page.overlay.append(sb)
         page.update()
 
     def filtrar(gastos):

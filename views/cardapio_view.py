@@ -41,8 +41,8 @@ def build_cardapio_view(page: ft.Page, api_cardapio, state: dict) -> ft.Containe
     )
 
     def snack(msg: str, cor: str = COR_SUCESSO):
-        page.snack_bar = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=cor, duration=2500)
-        page.snack_bar.open = True
+        sb = ft.SnackBar(content=ft.Text(msg, color="white"), bgcolor=cor, duration=2500, open=True)
+        page.overlay.append(sb)
         page.update()
 
     def linha_ingrediente(idx: int, nome: str = "", valor: str = "") -> ft.Row:
@@ -152,7 +152,7 @@ def build_cardapio_view(page: ft.Page, api_cardapio, state: dict) -> ft.Containe
             ings = c.get("ingredientes") or []
 
             def toggle_aberto(ev, cid=c["id"], nome_c=c.get("nome", "?")):
-                novo = ev.data.lower() == "true"
+                novo = ev.data if isinstance(ev.data, bool) else str(ev.data).lower() == "true"
                 ok, err = api_cardapio.alterar_aberto(cid, novo)
                 if ok:
                     snack(f"'{nome_c}' {'aberto' if novo else 'fechado'} para pedidos.")
