@@ -38,8 +38,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
         page.update()
 
     def fechar_dialogo(e=None):
-        if page.dialog:
-            page.dialog.open = False
+        page.pop_dialog()
         page.update()
 
     def _preview_widget(pedido: dict) -> ft.Container:
@@ -121,7 +120,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
             else:
                 snack(f"Erro na impressora: {err}", COR_ERRO)
 
-        page.dialog = ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             modal=True,
             title=ft.Row([
                 ft.Icon(ft.Icons.RECEIPT_LONG, color=COR_PRIMARIA, size=22),
@@ -156,9 +155,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
                 mk_btn("Imprimir etiqueta", imprimir, ft.Icons.PRINT),
             ],
             bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
-        )
-        page.dialog.open = True
-        page.update()
+        ))
 
     def abrir_preview_impressao(pedido: dict):
         nome_marmit = state.get("marmiteria_nome") or "Comida & Afeto"
@@ -168,7 +165,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
             ok, err = imprimir_etiqueta(pedido, nome_marmit)
             snack("Etiqueta enviada!" if ok else f"Erro: {err}", COR_SUCESSO if ok else COR_ERRO)
 
-        page.dialog = ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             modal=True,
             title=ft.Row([
                 ft.Icon(ft.Icons.LABEL_OUTLINE, color=COR_PRIMARIA, size=24),
@@ -183,9 +180,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
                 mk_btn("Imprimir", imprimir, ft.Icons.PRINT),
             ],
             bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
-        )
-        page.dialog.open = True
-        page.update()
+        ))
 
     def imprimir_selecionados(e):
         selecionados = [p for p in _pedidos_state if _checks.get(p.get("id")) and _checks[p.get("id")].value]
@@ -205,7 +200,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
             previews.append(_preview_widget(p))
             previews.append(ft.Divider(color=COR_BORDA, height=12))
 
-        page.dialog = ft.AlertDialog(
+        page.show_dialog(ft.AlertDialog(
             modal=True,
             title=ft.Row([
                 ft.Icon(ft.Icons.PRINT, color=COR_PRIMARIA, size=24),
@@ -220,9 +215,7 @@ def build_pedidos_view(page: ft.Page, api_pedido, state: dict) -> ft.Container:
                 mk_btn("Confirmar impressão", confirmar_impressao, ft.Icons.PRINT),
             ],
             bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
-        )
-        page.dialog.open = True
-        page.update()
+        ))
 
     def selecionar_todos(e):
         for chk in _checks.values():

@@ -54,35 +54,36 @@ def mk_card(content: ft.Control, padding: int = 24) -> ft.Container:
 
 
 def mk_dialogo_confirmacao(page: ft.Page, titulo: str, mensagem: str, on_confirmar):
-    def confirmar(ev):
-        page.dialog.open = False
+    def cancelar(ev):
+        page.pop_dialog()
         page.update()
-        if ev.control.text in ("Excluir", "Confirmar"):
-            on_confirmar()
+
+    def confirmar(ev):
+        page.pop_dialog()
+        page.update()
+        on_confirmar()
 
     from models.constants import COR_ERRO
-    page.dialog = ft.AlertDialog(
+    page.show_dialog(ft.AlertDialog(
         modal=True,
         title=ft.Text(titulo, color=COR_TEXTO, weight=ft.FontWeight.BOLD),
         content=ft.Text(mensagem, color=COR_SUBTEXTO),
         actions=[
-            ft.TextButton("Cancelar", style=ft.ButtonStyle(color=COR_SUBTEXTO), on_click=confirmar),
+            ft.TextButton("Cancelar", style=ft.ButtonStyle(color=COR_SUBTEXTO), on_click=cancelar),
             mk_btn("Excluir", confirmar, bgcolor=COR_ERRO),
         ],
         bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
-    )
-    page.dialog.open = True
-    page.update()
+    ))
 
 
 def mk_dialogo_sucesso(page: ft.Page, titulo: str, corpo: str):
     from models.constants import COR_SUCESSO
 
     def fechar(e):
-        page.dialog.open = False
+        page.pop_dialog()
         page.update()
 
-    page.dialog = ft.AlertDialog(
+    page.show_dialog(ft.AlertDialog(
         modal=True,
         title=ft.Row([
             ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color=COR_SUCESSO, size=28),
@@ -91,6 +92,4 @@ def mk_dialogo_sucesso(page: ft.Page, titulo: str, corpo: str):
         content=ft.Text(corpo, color=COR_SUBTEXTO, size=14),
         actions=[mk_btn("OK", fechar)],
         bgcolor=COR_CARD, shape=ft.RoundedRectangleBorder(radius=14),
-    )
-    page.dialog.open = True
-    page.update()
+    ))
