@@ -71,6 +71,8 @@ def build_gastos_view(page: ft.Page, api_gastos, state: dict, gasto_editando: di
                 snack("Preencha valor e categoria!", COR_ERRO); return
             try:
                 custo = float(custo_str)
+                if custo <= 0:
+                    snack("O valor deve ser maior que zero!", COR_ERRO); return
             except ValueError:
                 snack("Valor inválido!", COR_ERRO); return
             try:

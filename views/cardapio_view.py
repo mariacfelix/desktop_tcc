@@ -108,9 +108,14 @@ def build_cardapio_view(page: ft.Page, api_cardapio, state: dict) -> ft.Containe
                 continue
             try:
                 vf = float(v)
+                if vf < 0:
+                    snack(f"Valor do ingrediente '{n}' não pode ser negativo.", COR_ERRO); return
             except Exception:
                 snack(f"Valor inválido no ingrediente '{n}'", COR_ERRO); return
             ings.append({"nome": n, "valorPorGramas": vf, "posicao": idx + 1})
+
+        if not ings:
+            snack("Adicione pelo menos 1 ingrediente ao cardápio.", COR_ERRO); return
 
         payload = {
             "nome": nome, "validade": validade_iso,

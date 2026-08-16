@@ -15,7 +15,7 @@ from views.gastos_view import build_gastos_view
 from views.dashboard_view import build_dashboard_view
 from views.cardapio_view import build_cardapio_view
 from views.pedidos_view import build_pedidos_view
-from views.debug_view import build_debug_view
+from views.perfil_view import build_perfil_view
 
 api_marmiteria = MarmiteriaClient(API_MARMITERIA)
 api_gastos     = GastosClient(API_GASTOS)
@@ -27,14 +27,13 @@ ITENS_NAV = [
     (ft.Icons.BAR_CHART_OUTLINED,    ft.Icons.BAR_CHART_ROUNDED,  "Dashboard"),
     (ft.Icons.MENU_BOOK_OUTLINED,    ft.Icons.MENU_BOOK,          "Cardápio"),
     (ft.Icons.SHOPPING_BAG_OUTLINED, ft.Icons.SHOPPING_BAG,       "Pedidos"),
-    # (ft.Icons.BUG_REPORT_OUTLINED,   ft.Icons.BUG_REPORT,         "Debug"),
 ]
 
 
 def main(page: ft.Page):
-    page.title        = "Comida & Afeto"
-    page.bgcolor      = COR_FUNDO
-    page.window.width = 1150
+    page.title         = "Comida & Afeto"
+    page.bgcolor       = COR_FUNDO
+    page.window.width  = 1150
     page.window.height = 750
     page.window.min_width  = 900
     page.window.min_height = 600
@@ -46,6 +45,12 @@ def main(page: ft.Page):
         weight=ft.FontWeight.BOLD,
         max_lines=2,
         overflow=ft.TextOverflow.ELLIPSIS,
+    )
+
+    inicial_txt = ft.Text(
+        "", size=20, color="white",
+        weight=ft.FontWeight.BOLD,
+        text_align=ft.TextAlign.CENTER,
     )
 
     area_conteudo = ft.Container(expand=True)
@@ -62,34 +67,46 @@ def main(page: ft.Page):
     view_dashboard = build_dashboard_view(page, api_gastos, state, gasto_editando, on_editar_gasto)
     view_cardapio  = build_cardapio_view(page, api_cardapio, state)
     view_pedidos   = build_pedidos_view(page, api_pedido, state)
-    # view_debug     = build_debug_view(page, state)
+    view_perfil    = build_perfil_view(page, api_marmiteria, state, on_logout=lambda: fazer_logout())
 
-    TELAS = [view_gastos, view_dashboard, view_cardapio, view_pedidos, ]#view_debug
+    TELAS = [view_gastos, view_dashboard, view_cardapio, view_pedidos]
+    IDX_PERFIL = 99
 
     def trocar_tela(idx: int):
         _idx_atual[0] = idx
+
         for i, btn in enumerate(botoes_nav):
-            selecionado           = (i == idx)
-            btn.bgcolor           = COR_PRIMARIA if selecionado else "transparent"
-            icone_ctrl            = btn.content.controls[0]
-            label_ctrl            = btn.content.controls[1]
-            icone_ctrl.name       = ITENS_NAV[i][1] if selecionado else ITENS_NAV[i][0]
-            icone_ctrl.color      = "white" if selecionado else COR_TEXTO
-            label_ctrl.color      = "white" if selecionado else COR_TEXTO
+            selecionado      = (i == idx)
+            btn.bgcolor      = COR_PRIMARIA if selecionado else "transparent"
+            icone_ctrl       = btn.content.controls[0]
+            label_ctrl       = btn.content.controls[1]
+            icone_ctrl.name  = ITENS_NAV[i][1] if selecionado else ITENS_NAV[i][0]
+            icone_ctrl.color = "white" if selecionado else COR_TEXTO
+            label_ctrl.color = "white" if selecionado else COR_TEXTO
             btn.update()
 
-        area_conteudo.content = TELAS[idx]
+        btn_perfil.bgcolor = COR_PRIMARIA if idx == IDX_PERFIL else COR_PRIMARIA
 
-        if idx == 0:
-            view_gastos.recarregar() if hasattr(view_gastos, "recarregar") else page.update()
-        elif idx == 1:
-            view_dashboard.recarregar()
-        elif idx == 2:
-            view_cardapio.recarregar()
-        elif idx == 3:
-            view_pedidos.recarregar()
+        if idx == IDX_PERFIL:
+            area_conteudo.content = view_perfil
+            view_perfil.carregar_dados()
         else:
-            page.update()
+            area_conteudo.content = TELAS[idx]
+            if idx == 0:
+                view_gastos.recarregar() if hasattr(view_gastos, "recarregar") else page.update()
+            elif idx == 1:
+                view_dashboard.recarregar()
+            elif idx == 2:
+                view_cardapio.recarregar()
+            elif idx == 3:
+                view_pedidos.recarregar()
+            else:
+                page.update()
+
+    def fazer_logout():
+        page.controls.clear()
+        page.add(tela_login)
+        page.update()
 
     for i, (icone_off, icone_on, label) in enumerate(ITENS_NAV):
         btn = ft.Container(
@@ -105,10 +122,28 @@ def main(page: ft.Page):
         )
         botoes_nav.append(btn)
 
-    botoes_nav[0].bgcolor                            = COR_PRIMARIA
-    botoes_nav[0].content.controls[0].name          = ITENS_NAV[0][1]
-    botoes_nav[0].content.controls[0].color         = "white"
-    botoes_nav[0].content.controls[1].color         = "white"
+    botoes_nav[0].bgcolor                   = COR_PRIMARIA
+    botoes_nav[0].content.controls[0].name  = ITENS_NAV[0][1]
+    botoes_nav[0].content.controls[0].color = "white"
+    botoes_nav[0].content.controls[1].color = "white"
+
+    btn_perfil = ft.Container(
+        content=ft.Container(
+            content=ft.Column(
+                [inicial_txt],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            width=44, height=44,
+            border_radius=22,
+            bgcolor=COR_PRIMARIA,
+        ),
+        on_click=lambda e: trocar_tela(IDX_PERFIL),
+        tooltip="Perfil da marmitaria",
+        ink=True,
+        border_radius=22,
+        padding=ft.Padding.all(4),
+    )
 
     sidebar = ft.Container(
         width=115, bgcolor=COR_SIDEBAR,
@@ -118,10 +153,7 @@ def main(page: ft.Page):
                 width=115,
                 padding=ft.Padding.symmetric(horizontal=10, vertical=18),
                 content=ft.Column([
-                    ft.Container(
-                        ft.Image(src="assets/images/logo.png", width=72, height=72),
-                        # alignment=ft.alignment.,
-                    ),
+                    ft.Image(src="assets/images/logo.png", width=72, height=72),
                     ft.Container(height=8),
                     nome_marmiteria_txt,
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
@@ -135,14 +167,23 @@ def main(page: ft.Page):
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
             ),
+            ft.Container(
+                padding=ft.Padding.symmetric(horizontal=8, vertical=12),
+                content=ft.Row(
+                    [btn_perfil],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+            ),
         ], spacing=0, expand=True),
     )
 
     tela_principal = ft.Row(controls=[sidebar, area_conteudo], spacing=0, expand=True)
 
     def on_login_sucesso():
-        nome_marmiteria_txt.value = state["marmiteria_nome"] or ""
-        area_conteudo.content     = TELAS[0]
+        nome = state["marmiteria_nome"] or ""
+        nome_marmiteria_txt.value = nome
+        inicial_txt.value = nome[0].upper() if nome else "?"
+        area_conteudo.content = TELAS[0]
         page.controls.clear()
         page.add(tela_principal)
         view_gastos.recarregar() if hasattr(view_gastos, "recarregar") else page.update()

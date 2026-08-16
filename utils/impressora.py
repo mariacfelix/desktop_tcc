@@ -17,10 +17,18 @@ def _centralizar(texto: str, largura: int = CHAR_WIDTH) -> str:
     return texto[:largura].center(largura)
 
 
+def _backend_usb():
+    import libusb_package
+    return libusb_package.get_libusb1_backend()
+
+
 def imprimir_etiqueta(pedido: dict, nome_marmiteria: str) -> tuple[bool, Optional[str]]:
     try:
         from escpos.printer import Usb
-        printer = Usb(0x0483, 0x5743, profile="default")
+        printer = Usb(
+            0x0483, 0x5743, profile="default",
+            usb_args={"backend": _backend_usb()},
+        )
         _enviar_etiqueta(printer, pedido, nome_marmiteria)
         printer.close()
         return True, None
@@ -32,7 +40,10 @@ def imprimir_etiqueta(pedido: dict, nome_marmiteria: str) -> tuple[bool, Optiona
 def imprimir_etiquetas_lote(pedidos: list, nome_marmiteria: str) -> tuple[bool, Optional[str]]:
     try:
         from escpos.printer import Usb
-        printer = Usb(0x0483, 0x5743, profile="default")
+        printer = Usb(
+            0x0483, 0x5743, profile="default",
+            usb_args={"backend": _backend_usb()},
+        )
         for i, pedido in enumerate(pedidos):
             _enviar_etiqueta(printer, pedido, nome_marmiteria)
             if i < len(pedidos) - 1:

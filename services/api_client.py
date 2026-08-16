@@ -63,6 +63,12 @@ class MarmiteriaClient:
     def login(self, email: str, senha: str):
         return _post(f"{self.base}/login", {"username": email, "senha": senha})
 
+    def buscar(self, marmiteria_id: int):
+        return _get(f"{self.base}/buscar/{marmiteria_id}")
+
+    def atualizar(self, payload: dict):
+        return _put(f"{self.base}/atualizar", payload)
+
 
 class GastosClient:
     def __init__(self, base: str):
